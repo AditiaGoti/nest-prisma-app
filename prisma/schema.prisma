@@ -55,6 +55,7 @@ model Food {
   subtitle    String
   price       Int
   description String?
+  imageUrl String?
   stock       Int
   type        FoodType
   createdAt   DateTime @default(now())

@@ -6,13 +6,17 @@ import { NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { FilterFoodDto } from './dto/filter-foods.dto';
 import { Prisma } from '@prisma/client';
+
+type CreateFoodWithImage = CreateFoodsDto & {
+    imageUrl: string;
+};
 @Injectable()
 export class FoodsService {
     constructor(private prisma: PrismaService) { }
-    async create(createFoodDto: CreateFoodsDto) {
+    async create(data: CreateFoodWithImage) {
         try {
             const food = await this.prisma.food.create({
-                data: createFoodDto,
+                data,
             });
 
             return {
@@ -20,16 +24,18 @@ export class FoodsService {
                 data: food,
             };
 
-        } catch (error) {
+        } catch (error: unknown) {
             console.error(error);
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
 
-            if (error.code === 'P2002') {
-                throw new BadRequestException('Data sudah ada (duplicate)');
+                if (error.code === 'P2002') {
+                    throw new BadRequestException('Data sudah ada (duplicate)');
+                }
+
+                throw new InternalServerErrorException(
+                    error.message || 'Terjadi kesalahan saat membuat food'
+                );
             }
-
-            throw new InternalServerErrorException(
-                error.message || 'Terjadi kesalahan saat membuat food'
-            );
         }
     }
     async findAll(query: FilterFoodDto) {
@@ -85,16 +91,49 @@ export class FoodsService {
         return food;
     }
 
-    update(id: number, updateFoodsDto: UpdateFoodsDto) {
-        return this.prisma.food.update({
-            where: { id },
-            data: updateFoodsDto,
-        });
+    async update(id: number, updateFoodsDto: UpdateFoodsDto) {
+        try {
+            const food = await this.prisma.food.update({
+                where: { id },
+                data: updateFoodsDto,
+            });
+
+            return {
+                message: 'Food berhasil diupdate',
+                data: food,
+            };
+        } catch (error: unknown) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === 'P2025') {
+                    throw new NotFoundException('Food tidak ditemukan');
+                }
+            }
+
+            throw new InternalServerErrorException(
+                error instanceof Error ? error.message : 'Terjadi kesalahan',
+            );
+        }
     }
 
-    remove(id: number) {
-        return this.prisma.food.delete({
-            where: { id },
-        });
+    async remove(id: number) {
+        try {
+            const food = await this.prisma.food.delete({
+                where: { id },
+            });
+            return {
+                message: 'Data Berhasil Di Hapus',
+                data: food,
+            }
+        } catch (error: unknown) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === 'P2025') {
+                    throw new NotFoundException('Food tidak ditemukan');
+                }
+            }
+
+            throw new InternalServerErrorException(
+                error instanceof Error ? error.message : 'Terjadi kesalahan',
+            )
+        }
     }
 }
