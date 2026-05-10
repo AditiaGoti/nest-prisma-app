@@ -1,10 +1,15 @@
+import { FoodType } from '@prisma/client'
 import { Type } from 'class-transformer'
-import { IsOptional, IsString, IsNumber } from 'class-validator'
+import { IsOptional, IsString, IsNumber, IsEnum } from 'class-validator'
 
 export class FilterFoodDto {
     @IsOptional()
     @IsString()
-    title?: string
+    subtitle?: string
+
+    @IsOptional()
+    @IsEnum(FoodType)
+    type?: FoodType
 
     @IsOptional()
     @Type(() => Number)

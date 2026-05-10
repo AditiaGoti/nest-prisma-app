@@ -1,5 +1,5 @@
 import { IsBoolean, IsEmail, IsEnum, IsString } from 'class-validator'
-import { AccountType } from '@prisma/client'
+import { AccountType, RoleType } from '@prisma/client'
 
 export class CreateUserDto {
 
@@ -18,4 +18,6 @@ export class CreateUserDto {
   @IsString()
   password!: string;
 
+  @IsEnum(RoleType)
+  role!: RoleType
 }

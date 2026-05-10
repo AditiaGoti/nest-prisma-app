@@ -1,12 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { Prisma } from '@prisma/client';
+import { ClientProxy } from '@nestjs/microservices';
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) { }
+  constructor(
+    private prisma: PrismaService,
+
+    @Inject('LOG_SERVICE')
+    private readonly logClient: ClientProxy,
+  ) { }
 
   async create(createUserDto: CreateUserDto) {
     const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
@@ -25,8 +32,21 @@ export class UsersService {
       data: result,
     };
   }
-  findAll() {
+  async findAll() {
+    const result = await this.prisma.user.findMany();
+
+    this.logClient.emit('activity-log', {
+      serviceName: 'backend-service',
+      action: 'GET_DETAIL_USER',
+      endpoint: `/users`,
+      method: 'GET',
+      response: result,
+
+      createdAt: new Date(),
+
+    });
     return this.prisma.user.findMany();
+
   }
   async findByEmail(email: string) {
     return this.prisma.user.findUnique({
@@ -34,7 +54,6 @@ export class UsersService {
     });
   }
   async findOne(id: string) {
-
     const user = await this.prisma.user.findUnique({
       where: { id },
     });
@@ -43,7 +62,26 @@ export class UsersService {
       throw new NotFoundException('User tidak ditemukan');
     }
 
-    return user;
+    const { password, ...result } = user;
+
+    this.logClient.emit('activity-log', {
+      serviceName: 'backend-service',
+
+      action: 'GET_DETAIL_USER',
+
+      endpoint: `/users/${id}`,
+      method: 'GET',
+
+      payload: {
+        userId: id,
+      },
+
+      response: result,
+
+      createdAt: new Date(),
+    });
+
+    return result;
   }
 
   update(id: string, updateUserDto: UpdateUserDto) {
@@ -53,9 +91,32 @@ export class UsersService {
     });
   }
 
-  remove(id: string) {
-    return this.prisma.user.delete({
-      where: { id },
-    });
+  async remove(id: string) {
+    try {
+      await this.prisma.refreshToken.deleteMany({
+        where: { userId: id },
+      });
+
+      const user = await this.prisma.user.delete({
+        where: { id },
+      });
+
+      return {
+        message: "User berhasil dihapus",
+        data: {
+          name: user.name,
+        },
+      };
+    } catch (err: unknown) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError) {
+        if (err.code === 'P2025') {
+          throw new NotFoundException('User tidak ditemukan');
+        }
+      }
+
+      throw new InternalServerErrorException(
+        err instanceof Error ? err.message : 'Terjadi kesalahan',
+      );
+    }
   }
 }

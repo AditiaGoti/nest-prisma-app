@@ -6,6 +6,7 @@ import { NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { FilterFoodDto } from './dto/filter-foods.dto';
 import { Prisma } from '@prisma/client';
+import { contains } from 'class-validator';
 
 type CreateFoodWithImage = CreateFoodsDto & {
     imageUrl: string;
@@ -39,14 +40,18 @@ export class FoodsService {
         }
     }
     async findAll(query: FilterFoodDto) {
-        const { title, minPrice, maxPrice, page = 1, limit = 10 } = query
+        const { subtitle, type, minPrice, maxPrice, page = 1, limit = 10 } = query
         const skip = (page - 1) * limit
         const where = {
-            ...(title && {
-                title: {
-                    contains: title,
+            ...(subtitle && {
+                subtitle: {
+                    contains: subtitle,
                     mode: Prisma.QueryMode.insensitive,
                 },
+            }),
+
+            ...(type && {
+                type: type,
             }),
 
             ...((minPrice !== undefined || maxPrice !== undefined) && {
